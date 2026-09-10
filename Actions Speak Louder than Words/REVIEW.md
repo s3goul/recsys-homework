@@ -68,8 +68,8 @@
 Раздел 3 начинается с трёх уравнений HSTU и **Figure 3**, где сложный DLRM слева заменён стеком одинаковых HSTU blocks справа. Авторы утверждают, что один блок способен объединить функции трёх классов DLRM-компонентов:
 
 - attention pooling выполняет feature extraction;
-- $A(X)V(X)\odot U(X)$ моделирует feature interactions;
-- gate $U(X)$ и output projection выполняют conditional transformation, частично аналогичную MoE.
+- `A(X)V(X) ⊙ U(X)` моделирует feature interactions;
+- gate `U(X)` и output projection выполняют conditional transformation, частично аналогичную MoE.
 
 В **Section 3.1** pointwise aggregated attention мотивируется интенсивностью предпочтения. Softmax отвечает преимущественно на вопрос «какие прошлые элементы важнее относительно других», но нормировка мешает различить один релевантный event и сотню похожих events. Synthetic Dirichlet-process experiment в Table 2 специально моделирует non-stationary vocabulary и rich-get-richer pattern. Удаление softmax даёт большой выигрыш, поэтому synthetic test служит проверкой inductive bias, а не общим benchmark recommendation quality.
 
@@ -103,7 +103,7 @@ Related Work отделяет предложенный подход от трё�
 
 | Appendix | Содержание | Зачем читать |
 |---|---|---|
-| A | Полная таблица обозначений и shapes $Q,K,V,U,A$ | Уточняет, что $d_{qk}$ и $d_v$ могут отличаться, а bias может разделяться между heads |
+| A | Полная таблица обозначений и shapes `Q, K, V, U, A` | Уточняет, что `d_qk` и `d_v` могут отличаться, а bias может разделяться между heads |
 | B | История GRU4Rec/SASRec/BERT4Rec и production DLRM; формальное сравнение постановок | Объясняет, почему GR не равен обычному next-item recommender |
 | C | Генератор synthetic Dirichlet-process data | Показывает, какую именно гипотезу проверяет pointwise attention |
 | D | Дополнительные public baselines GRU4Rec и BERT4Rec | Делает сравнение шире одной версии SASRec |
@@ -216,7 +216,7 @@ $$
 **Pointwise projection** одной fused-линейной операцией:
 
 $$
-[U,V,Q,K]=\operatorname{Split}(\operatorname{SiLU}(XW_1+b_1)).
+[U,V,Q,K]=\mathrm{Split}(\mathrm{SiLU}(XW_1+b_1)).
 $$
 
 В учебной реализации $U,V,Q,K\in\mathbb{R}^{B\times H\times N\times d_h}$. В production конфигурации размеры value/gate и query/key не обязаны совпадать.
@@ -228,7 +228,7 @@ S_{b,h,i,j}=\frac{Q_{b,h,i,:}K_{b,h,j,:}^{\top}}{\sqrt{d_h}}+r^{h}_{p(i-j),t(t_i
 $$
 
 $$
-A=\operatorname{SiLU}(S)\odot M_{causal},\qquad Z=AV.
+A=\mathrm{SiLU}(S)\odot M_{causal},\qquad Z=AV.
 $$
 
 Ключевое отличие от Transformer — **нет softmax по $j$**. Softmax стирает абсолютную массу релевантной истории: одинаковый результат может получиться от одного сильного и ста умеренных прошлых сигналов. Ненормированная сумма сохраняет intensity, а LayerNorm после pooling стабилизирует масштаб.
@@ -236,7 +236,7 @@ $$
 **Pointwise transformation и residual**:
 
 $$
-Y=X+W_2\left(\operatorname{LayerNorm}(Z)\odot U\right)+b_2.
+Y=X+W_2\left(\mathrm{LayerNorm}(Z)\odot U\right)+b_2.
 $$
 
 Gate $U$ делает блок близким по смыслу к SwiGLU/MoE gating. В статье $f_1$ и $f_2$ — по одной linear layer: меньше activation memory и легче fusion, чем attention + отдельный FFN в Transformer.
@@ -247,7 +247,7 @@ $r_{p,t}$ кодирует одновременно относительную �
 
 ### 3.3. Loss
 
-Для $K_a$ действий ranking head выдаёт $z^{act}_{i}\in\mathbb{R}^{K_a}$, а retrieval head — $z^{item}_{i}\in\mathbb{R}^{|\mathcal V|}$. Mask исключает padding и позиции без target:
+Для `K_a` действий ranking head выдаёт вектор логитов `z_act[i]` размерности `K_a`, а retrieval head — `z_item[i]` размерности `|V|`. Mask исключает padding и позиции без target:
 
 $$
 \mathcal L_{rank}=-\frac{1}{|M_a|}\sum_{i\in M_a}\log p(a_i\mid x_{\le i}),
@@ -290,7 +290,7 @@ $$
 | Synthetic streaming | Dirichlet Process, non-stationary vocabulary | один проход | HR@10, HR@50 |
 | Public sequential | MovieLens-1M, MovieLens-20M, Amazon Books | full shuffle, multi-epoch; тот же setup, что SASRec (2023) | HR@K, NDCG@K по всему корпусу |
 | Industrial streaming | закрытые данные Meta, более 100 млрд DLRM-equivalent examples | one-pass, streaming | ranking: Normalized Entropy; retrieval: log-perplexity / HR; online A/B |
-| Efficiency | H100, $N=1024\ldots8192$ | одинаковые базовые размеры | wall-clock, HBM, QPS |
+| Efficiency | H100, `N = 1024…8192` | одинаковые базовые размеры | wall-clock, HBM, QPS |
 
 **Физический смысл метрик.** HR@K отвечает, попал ли релевантный item в top-K, но не различает позиции внутри K. NDCG@K дисконтирует низкие позиции и потому лучше отражает видимость верхушки выдачи. Perplexity измеряет уверенность next-item distribution. Normalized Entropy — log-loss, нормированный на энтропию label: меньше — лучше, а сравнение устойчивее к разной base rate. Онлайн engagement/conversion — конечная бизнес-проверка, но статья не раскрывает определения задач E/C.
 
@@ -383,7 +383,7 @@ GR/HSTU разумен, если есть миллиарды событий, д�
 | Компонент | В статье | В PoC |
 |---|---|---|
 | Последовательная постановка | production heterogeneous streams | item/action/time synthetic streams |
-| Attention | custom fused ragged CUDA/Triton-like kernels | dense, читаемый PyTorch; stabilizing pre-LayerNorm перед $f_1$ |
+| Attention | custom fused ragged CUDA/Triton-like kernels | dense, читаемый PyTorch; stabilizing pre-LayerNorm перед `f1` |
 | Relative bias | production positional + temporal | learned position + log-time gap |
 | Objectives | закрытый multi-task набор | action CE + next-item CE |
 | Retrieval | sampled/MIPS/hierarchical | полный softmax по малому каталогу |

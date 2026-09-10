@@ -250,7 +250,7 @@ Survey не задаёт единую архитектуру, поэтому н�
 **Semantic ID:** content/collaborative vector $e_i\in\mathbb R^D$ квантуется последовательностью кодов. Для residual quantization:
 
 $$
-r_i^{(0)}=e_i,\quad c_i^{(m)}=\arg\min_{k<K}\|r_i^{(m)}-C_{m,k}\|_2^2,
+r_i^{(0)}=e_i,\quad c_i^{(m)}=\mathrm{argmin}_{0\le k<K}\left\|r_i^{(m)}-C_{m,k}\right\|_2^2,
 $$
 
 $$
@@ -265,13 +265,13 @@ $$
 Пусть batch $B$, длина flattened context $L$, hidden size $d$, heads $H$, code depth $M$, codebook size $K$. История из $S$ items превращается примерно в $L=S\cdot M$ code tokens плюс task/category/prompt tokens.
 
 $$
-X_0=E_{token}[x]+E_{level}[\ell]+E_{pos}[p]in\mathbb R^{B\times L\times d}.
+X_0=E_{token}[x]+E_{level}[\ell]+E_{pos}[p]\in\mathbb R^{B\times L\times d}.
 $$
 
 Decoder-only Transformer с causal mask даёт $H_L\in\mathbb R^{B\times L\times d}$. На каждом из $M$ шагов output head предсказывает один из $K$ кодов target item:
 
 $$
-p(c_m\mid x_{history},c_{<m})=\operatorname{softmax}(W_mh_m+b_m).
+p(c_m\mid x_{history},c_{1:m-1})=\mathrm{softmax}(W_mh_m+b_m).
 $$
 
 Генерация semantic ID — не natural-language generation: decoder должен пройти допустимый путь catalog tree и затем разрешить код в реальный item.
@@ -291,13 +291,13 @@ $$
 **Token CE:**
 
 $$
-\mathcal L_{CE}=-\frac1M\sum_{m=1}^{M}\log \pi_\theta(c_m^+\mid h,c_{<m}^+).
+\mathcal L_{CE}=-\frac{1}{M}\sum_{m=1}^{M}\log \pi_\theta(c_m^+\mid h,c_{1:m-1}^+).
 $$
 
 **InfoNCE** для user representation $u$ и target content vector $v^+$:
 
 $$
-\mathcal L_{NCE}=-\log\frac{\exp(\operatorname{sim}(u,v^+)/\tau)}{\sum_{v\in\mathcal B}\exp(\operatorname{sim}(u,v)/\tau)}.
+\mathcal L_{NCE}=-\log\frac{\exp(\mathrm{sim}(u,v^+)/\tau)}{\sum_{v\in\mathcal B}\exp(\mathrm{sim}(u,v)/\tau)}.
 $$
 
 **DPO** для preferred $y^+$ и rejected $y^-$ относительно frozen reference $\pi_{ref}$:
@@ -426,7 +426,7 @@ Semantic-ID decoder пересекает наиболее важные ветв�
 На шаге $m$ разрешены только коды, продолжающие хотя бы один catalog tuple с уже выбранным prefix:
 
 $$
-\mathcal A(c_{<m})=\{k:\exists i\in\mathcal I,\ (c_i^{(0)},\ldots,c_i^{(m)})=(c_{<m},k)\}.
+\mathcal A(c_{0:m-1})=\left\{k\mid \exists i\in\mathcal I:\ (c_i^{(0)},\ldots,c_i^{(m)})=(c_{0:m-1},k)\right\}.
 $$
 
 Перед top-k logits всех $k\notin\mathcal A$ становятся $-\infty$. После $M$ шагов каждый beam соответствует существующему semantic ID. Это даёт 100% **code validity**, но не обязательно 100% exact-item uniqueness из-за collisions; collisions разрешаются популярностью/точным content similarity. В production вместо Python trie нужен компактный FSA/GPU mask или hierarchical index.
